@@ -7,8 +7,8 @@ app = Flask(__name__)
 CORS(app)  # CORS 설정
 
 # API 키 설정
-client_id = "wo8uhc8zgi"  # 실제 Client ID로 변경
-client_secret = "IYg9hHKAnaam1VQ3ThKeztfkueGBDGliwBSMUtbW"  # 실제 Client Secret으로 변경
+client_id = "YOUR_CLIENT_ID"  # 실제 Client ID로 변경
+client_secret = "YOUR_CLIENT_SECRET"  # 실제 Client Secret으로 변경
 url = "https://naveropenapi.apigw.ntruss.com/sentiment-analysis/v1/analyze"
 
 @app.route('/')
