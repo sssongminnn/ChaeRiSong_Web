@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>감정 분석기</title>
+</head>
+<body>
+    <div class="container">
+        <h1>감정 분석기</h1>
+        <form id="analyzeForm" method="post">
+            <textarea name="content" rows="4" cols="50" placeholder="문장을 입력하세요..."></textarea><br>
+            <button type="submit">분석하기</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('analyzeForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            fetch('http://127.0.0.1:5000/analyze', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data);  // 응답 데이터 확인
+                const resultDiv = document.getElementById('result');
+                if (data.error) {
+                    resultDiv.innerHTML = '오류: ' + data.error;
+                } else {
+                    // API 응답에서 필요한 정보 추출
+                    const sentiment = data.document.sentiment;
+                    const confidence = data.document.confidence;
+    
+                    resultDiv.innerHTML = `
+                        감정: ${sentiment}<br>
+                        신뢰도:<br>
+                        부정적: ${confidence.negative.toFixed(2)}%<br>
+                        긍정적: ${confidence.positive.toFixed(2)}%<br>
+                        중립적: ${confidence.neutral.toFixed(2)}%
+                    `;
+                }
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '오류 발생: ' + error.message;
+            });
+        });
+    </script>
+    
+</body>
+</html>
