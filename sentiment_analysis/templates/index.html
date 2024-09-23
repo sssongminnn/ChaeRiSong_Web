@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>감정 분석기</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>감정 분석 및 음악 추천</title>
 </head>
 <body>
     <div class="container">
-        <h1>감정 분석기</h1>
+        <h1>감정 분석 및 음악 추천</h1>
         <form id="analyzeForm" method="post">
-            <textarea name="content" rows="4" cols="50" placeholder="문장을 입력하세요..."></textarea><br>
-            <button type="submit">분석하기</button>
+            <textarea name="content" rows="4" placeholder="문장을 입력하세요..."></textarea><br>
+            <button type="submit">분석</button>
         </form>
         <div id="result"></div>
+        <div id="music"></div>
     </div>
 
     <script>
@@ -32,20 +34,36 @@
             .then(data => {
                 console.log(data);  // 응답 데이터 확인
                 const resultDiv = document.getElementById('result');
+                const musicDiv = document.getElementById('music');
+
                 if (data.error) {
                     resultDiv.innerHTML = '오류: ' + data.error;
+                    musicDiv.innerHTML = '';
                 } else {
-                    // API 응답에서 필요한 정보 추출
-                    const sentiment = data.document.sentiment;
-                    const confidence = data.document.confidence;
-    
+                    // 감정 분석 결과 표시
+                    const sentiment = data.sentiment.document.sentiment;
+                    const confidence = data.sentiment.document.confidence;
+
                     resultDiv.innerHTML = `
                         감정: ${sentiment}<br>
-                        신뢰도:<br>
-                        부정적: ${confidence.negative.toFixed(2)}%<br>
+                        신뢰도<br>
                         긍정적: ${confidence.positive.toFixed(2)}%<br>
+                        부정적: ${confidence.negative.toFixed(2)}%<br>
                         중립적: ${confidence.neutral.toFixed(2)}%
                     `;
+
+                    // 음악 추천 결과 표시
+                    const tracks = data.music_recommendations.tracks;
+                    if (tracks.length > 0) {
+                        let musicList = '<h2>음악 추천:</h2><ul>';
+                        tracks.forEach(track => {
+                            musicList += `<li>${track.name} - ${track.artists.map(artist => artist.name).join(', ')}</li>`;
+                        });
+                        musicList += '</ul>';
+                        musicDiv.innerHTML = musicList;
+                    } else {
+                        musicDiv.innerHTML = '추천할 음악이 없습니다.';
+                    }
                 }
             })
             .catch(error => {
