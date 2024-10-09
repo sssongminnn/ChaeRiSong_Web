@@ -15,6 +15,7 @@
         </form>
         <div id="result"></div>
         <div id="music"></div>
+        <audio id="audioPlayer" controls style="display:none;"></audio> <!-- 오디오 플레이어 추가 -->
     </div>
 
     <script>
@@ -52,18 +53,18 @@
                         중립적: ${confidence.neutral.toFixed(2)}%
                     `;
 
-                    // 음악 추천 결과 표시
-                    const tracks = data.music_recommendations.tracks;
-                    if (tracks.length > 0) {
-                        let musicList = '<h2>음악 추천:</h2><ul>';
-                        tracks.forEach(track => {
-                            musicList += `<li>${track.name} - ${track.artists.map(artist => artist.name).join(', ')}</li>`;
-                        });
-                        musicList += '</ul>';
-                        musicDiv.innerHTML = musicList;
-                    } else {
-                        musicDiv.innerHTML = '추천할 음악이 없습니다.';
-                    }
+                    // 랜덤으로 선택된 음악 추천 결과 표시
+                    const track = data.music_recommendation;
+                    musicDiv.innerHTML = `
+                        <h2>추천된 음악:</h2>
+                        <p>${track.name} - ${track.artists.map(artist => artist.name).join(', ')}</p>
+                    `;
+
+                    // 음악 재생
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    audioPlayer.src = track.preview_url;  // Spotify의 트랙 미리 듣기 URL
+                    audioPlayer.style.display = 'block';
+                    audioPlayer.play();
                 }
             })
             .catch(error => {
@@ -72,6 +73,5 @@
             });
         });
     </script>
-    
 </body>
 </html>
