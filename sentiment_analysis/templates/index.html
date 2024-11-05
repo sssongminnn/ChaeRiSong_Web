@@ -1,77 +1,55 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <title>감정 분석 및 음악 추천</title>
+    <title>감정 분석 웹 애플리케이션</title>
 </head>
 <body>
-    <div class="container">
-        <h1>감정 분석 및 음악 추천</h1>
-        <form id="analyzeForm" method="post">
-            <textarea name="content" rows="4" placeholder="문장을 입력하세요..."></textarea><br>
-            <button type="submit">분석</button>
-        </form>
-        <div id="result"></div>
-        <div id="music"></div>
-        <audio id="audioPlayer" controls style="display:none;"></audio> <!-- 오디오 플레이어 추가 -->
-    </div>
+    <h1>텍스트 감정 분석기</h1>
+    <textarea id="textInput" rows="5" cols="40" placeholder="분석할 텍스트를 입력하세요"></textarea><br>
+    <button onclick="sendAnalyzeRequest()">분석하기</button>
+
+    <div id="result"></div>
+    <audio id="audioPlayer" controls style="display: none; margin-top: 20px;"></audio>
 
     <script>
-        document.getElementById('analyzeForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const formData = new FormData(this);
-            fetch('http://127.0.0.1:5000/analyze', {
+        function sendAnalyzeRequest() {
+            const text = document.getElementById('textInput').value;
+            
+            fetch('/analyze', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: text })
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.statusText);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log(data);  // 응답 데이터 확인
-                const resultDiv = document.getElementById('result');
-                const musicDiv = document.getElementById('music');
-
                 if (data.error) {
-                    resultDiv.innerHTML = '오류: ' + data.error;
-                    musicDiv.innerHTML = '';
+                    document.getElementById('result').innerHTML = `오류: ${data.error}`;
+                    document.getElementById('audioPlayer').style.display = 'none'; // 오류가 있을 경우 재생바 숨기기
                 } else {
-                    // 감정 분석 결과 표시
-                    const sentiment = data.sentiment.document.sentiment;
-                    const confidence = data.sentiment.document.confidence;
+                    document.getElementById('result').innerHTML = `감정: ${data.sentiment} <br> 추천 음악: ${data.music_recommendation.name} by ${data.music_recommendation.artists[0].name}`;
 
-                    resultDiv.innerHTML = `
-                        감정: ${sentiment}<br>
-                        신뢰도<br>
-                        긍정적: ${confidence.positive.toFixed(2)}%<br>
-                        부정적: ${confidence.negative.toFixed(2)}%<br>
-                        중립적: ${confidence.neutral.toFixed(2)}%
-                    `;
-
-                    // 랜덤으로 선택된 음악 추천 결과 표시
-                    const track = data.music_recommendation;
-                    musicDiv.innerHTML = `
-                        <h2>추천된 음악:</h2>
-                        <p>${track.name} - ${track.artists.map(artist => artist.name).join(', ')}</p>
-                    `;
-
-                    // 음악 재생
-                    const audioPlayer = document.getElementById('audioPlayer');
-                    audioPlayer.src = track.preview_url;  // Spotify의 트랙 미리 듣기 URL
-                    audioPlayer.style.display = 'block';
-                    audioPlayer.play();
+                    // 미리듣기 URL이 있는 경우에만 오디오 재생
+                    const previewUrl = data.music_recommendation.preview_url;
+                    if (previewUrl) {
+                        const audioPlayer = document.getElementById('audioPlayer');
+                        audioPlayer.src = previewUrl;
+                        audioPlayer.style.display = 'block'; // 오디오 재생바 표시
+                        audioPlayer.play(); // 자동으로 음악 재생
+                    } else {
+                        document.getElementById('audioPlayer').style.display = 'none';
+                        document.getElementById('result').innerHTML += `<br>미리듣기를 사용할 수 없습니다.`;
+                    }
                 }
             })
             .catch(error => {
-                const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = '오류 발생: ' + error.message;
+                document.getElementById('result').innerHTML = `오류 발생: ${error}`;
+                document.getElementById('audioPlayer').style.display = 'none'; // 오류가 있을 경우 재생바 숨기기
             });
-        });
+        }
     </script>
 </body>
 </html>

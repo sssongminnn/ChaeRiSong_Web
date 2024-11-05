@@ -1,20 +1,66 @@
-from flask import Flask, render_template, request, jsonify
 import requests
-import json
-import random  # 랜덤 선택을 위한 모듈
-from flask_cors import CORS
+from flask import Flask, render_template, request, jsonify
+import random
 
 app = Flask(__name__)
-CORS(app)  # CORS 설정
 
-# 네이버 감정 분석 API 설정
-client_id = "wo8uhc8zgi"  # 실제 네이버 Client ID로 변경
-client_secret = "IYg9hHKAnaam1VQ3ThKeztfkueGBDGliwBSMUtbW"  # 실제 네이버 Client Secret으로 변경
-naver_url = "https://naveropenapi.apigw.ntruss.com/sentiment-analysis/v1/analyze"
+CLOVASTUDIO_API_KEY = "NTA0MjU2MWZlZTcxNDJiY6E6DoJjP+y3t+dreE2flVrWAGgtghU8gD17GHn/QLyW"
+APIGW_API_KEY = "kiwKq0Ku69xEunR4KCwH2PWLDuFDeA1U6Uo5IoLh"
+API_URL = "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003"
 
 # Spotify API 설정 (엑세스 토큰 하드코딩)
 spotify_url = "https://api.spotify.com/v1/recommendations"
-spotify_access_token = "BQANJpn0_Q63JkgMAkBAOSBiYMmHAuqjuQElI65XcZZ1s4f6YtjMdygL0PwSVEWDECPcGg-KWljgfmbuJJ6D0jufIj1Hc61e5kxTHGD1bADzw6BkkIk"  # 실제 Spotify Access Token으로 변경
+spotify_access_token = "BQCsmrRhQLqarY3wCL-P70BiDqfVrQ9J0XKVU4wVurhPnfTYlsyCS-6AV-NHE_0Zza5Q2gqCYNdDQjkVkkljNjwBLcPLFViyA6EI8zoRIOt8uNZ0VTs"  # 실제 Spotify Access Token으로 변경
+
+def analyze_sentiment(text):
+    headers = {
+        "X-NCP-CLOVASTUDIO-API-KEY": CLOVASTUDIO_API_KEY,
+        "X-NCP-APIGW-API-KEY": APIGW_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream"
+    }
+    data = {
+        "messages": [
+            {
+                "role": "system",
+                "content": "이것은 문장 감정 분석기 입니다.\n\n문장: 기분 진짜 좋다\n감정: 긍정\n###\n문장: 아오 진짜 짜증나게 하네\n감정: 부정\n###\n문장: 이걸로 보내드릴게요\n감정: 중립\n###\n문장: 짜증나네\n감정: 부정\n###"
+            },
+            {
+                "role": "user",
+                "content": f"문장: {text}"
+            }
+        ],
+        "topP": 0.6,
+        "topK": 0,
+        "maxTokens": 256,
+        "temperature": 0.1,
+        "repeatPenalty": 1.2,
+        "includeAiFilters": True,
+        "seed": 0
+    }
+
+    response = requests.post(API_URL, headers=headers, json=data, stream=True)
+    
+    if response.status_code == 200:
+        sentiment = ""
+        for line in response.iter_lines():
+            if line:
+                decoded_line = line.decode("utf-8")
+                if "data:" in decoded_line:
+                    try:
+                        data_json = decoded_line.split("data:")[1].strip()
+                        if '"content"' in data_json:
+                            content = data_json.split('"content":"')[1].split('"')[0]
+                            if "감정: " in content:
+                                sentiment = content.split("감정: ")[-1].strip()
+                                break  # 첫 감정 표현만 저장하고 루프 종료
+                    except (IndexError, ValueError):
+                        continue
+
+        return {"sentiment": sentiment}
+    else:
+        print(f"Error: {response.status_code}, Message: {response.text}")
+        return {"error": f"API 호출 실패 - 상태 코드: {response.status_code}"}
 
 @app.route('/')
 def home():
@@ -22,28 +68,13 @@ def home():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    content = request.form.get('content')
-    if not content:
-        return jsonify({"error": "No content provided"}), 400
+    user_text = request.json['text']
+    naver_result = analyze_sentiment(user_text)
 
-    # 네이버 감정 분석 API 호출
-    naver_headers = {
-        "X-NCP-APIGW-API-KEY-ID": client_id,
-        "X-NCP-APIGW-API-KEY": client_secret,
-        "Content-Type": "application/json"
-    }
-    naver_data = {"content": content}
-    
-    try:
-        naver_response = requests.post(naver_url, data=json.dumps(naver_data), headers=naver_headers)
-        naver_response.raise_for_status()  # 응답 오류 확인
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to analyze sentiment: {str(e)}"}), naver_response.status_code if naver_response else 500
+    if "error" in naver_result:
+        return jsonify(naver_result), 500
 
-    naver_result = naver_response.json()
-    sentiment = naver_result.get('document', {}).get('sentiment')
-    if not sentiment:
-        return jsonify({"error": "Sentiment analysis failed"}), 500
+    sentiment = naver_result.get("sentiment", "중립")
 
     # 감정 분석 결과에 따라 Spotify API 호출
     spotify_headers = {
@@ -51,9 +82,9 @@ def analyze():
     }
 
     # 감정별로 target_valence(곡의 밝기)를 설정
-    if sentiment == 'positive':
+    if "긍정" in sentiment:
         target_valence = 0.9  # 밝고 긍정적인 곡
-    elif sentiment == 'negative':
+    elif "부정" in sentiment:
         target_valence = 0.1  # 슬프고 부정적인 곡
     else:
         target_valence = 0.5  # 중립적인 곡
@@ -69,7 +100,7 @@ def analyze():
         spotify_response = requests.get(spotify_url, headers=spotify_headers, params=spotify_params)
         spotify_response.raise_for_status()  # 응답 오류 확인
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to fetch music recommendations: {str(e)}"}), spotify_response.status_code if spotify_response else 500
+        return jsonify({"error": f"Failed to fetch music recommendations: {str(e)}"}), 500
 
     spotify_result = spotify_response.json()
 
@@ -82,7 +113,7 @@ def analyze():
 
     # 감정 분석 결과와 음악 추천 결과를 함께 반환
     return jsonify({
-        "sentiment": naver_result,
+        "sentiment": sentiment,
         "music_recommendation": random_track  # 랜덤으로 선택한 트랙만 반환
     })
 
