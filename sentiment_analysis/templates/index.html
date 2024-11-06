@@ -1,55 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>감정 분석 웹 애플리케이션</title>
+    <title>감정 분석 및 추천 시스템</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <style>
+        *{
+        font-family: "Jua", serif;
+        font-weight: 400;
+        font-style: normal;
+        }
+        body{
+            background-color: rgba(206, 235, 255, 0.5);
+        }
+    </style>
 </head>
 <body>
-    <h1>텍스트 감정 분석기</h1>
-    <textarea id="textInput" rows="5" cols="40" placeholder="분석할 텍스트를 입력하세요"></textarea><br>
-    <button onclick="sendAnalyzeRequest()">분석하기</button>
+    <div class="container mt-5">
+        <h1 class="text-center">지금 당신은?</h1>
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <form id="analyzeForm">
+                    <div class="form-group">
+                        <label for="userText">당신의 기분이나 생각을 입력하세요:</label>
+                        <textarea id="userText" class="form-control" rows="3" required></textarea>
+                    </div>
+                </form>
 
-    <div id="result"></div>
-    <audio id="audioPlayer" controls style="display: none; margin-top: 20px;"></audio>
+                <button type="button" class="btn btn-primary" id="musicBtn">음악 추천</button>
+                <button type="button" class="btn btn-secondary" id="movieBtn">영화 추천</button>
+
+                <hr>
+
+                <div id="result" style="display: none;">
+                    <h3>감정 분석 결과:</h3>
+                    <p><strong>감정:</strong> <span id="sentiment"></span></p>
+                </div>
+
+                <div id="musicRecommendation" style="display: none;">
+                    <h3>음악 추천:</h3>
+                    <p><strong>제목:</strong> <span id="musicTitle"></span></p>
+                    <p><strong>아티스트:</strong> <span id="musicArtist"></span></p>
+                    <iframe id="spotifyPlayer" style="width: 100%; height: 80px;" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+                </div>
+
+                <div id="movieRecommendation" style="display: none;">
+                    <h3>영화 추천:</h3>
+                    <p><strong>제목:</strong> <span id="movieTitle"></span></p>
+                    <p><strong>개봉일:</strong> <span id="movieReleaseDate"></span></p>
+                    <p><strong>줄거리:</strong> <span id="movieOverview"></span></p>
+                    <p><strong>포스터:</strong></p>
+                    <img id="moviePoster" style="width: 200px;" alt="Movie Poster">
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        function sendAnalyzeRequest() {
-            const text = document.getElementById('textInput').value;
-            
-            fetch('/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ text: text })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    document.getElementById('result').innerHTML = `오류: ${data.error}`;
-                    document.getElementById('audioPlayer').style.display = 'none'; // 오류가 있을 경우 재생바 숨기기
-                } else {
-                    document.getElementById('result').innerHTML = `감정: ${data.sentiment} <br> 추천 음악: ${data.music_recommendation.name} by ${data.music_recommendation.artists[0].name}`;
+        $(document).ready(function() {
+            $("#musicBtn").click(function() {
+                let userText = $("#userText").val();
 
-                    // 미리듣기 URL이 있는 경우에만 오디오 재생
-                    const previewUrl = data.music_recommendation.preview_url;
-                    if (previewUrl) {
-                        const audioPlayer = document.getElementById('audioPlayer');
-                        audioPlayer.src = previewUrl;
-                        audioPlayer.style.display = 'block'; // 오디오 재생바 표시
-                        audioPlayer.play(); // 자동으로 음악 재생
-                    } else {
-                        document.getElementById('audioPlayer').style.display = 'none';
-                        document.getElementById('result').innerHTML += `<br>미리듣기를 사용할 수 없습니다.`;
+                $.ajax({
+                    url: "/analyze",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({ text: userText }),
+                    success: function(response) {
+                        // 감정 분석 결과 표시
+                        $("#result").show();
+                        $("#sentiment").text(response.sentiment);
+
+                        // 음악 추천만 표시
+                        $("#musicRecommendation").show();
+                        $("#movieRecommendation").hide();
+
+                        const music = response.music_recommendation;
+                        $("#musicTitle").text(music.name);
+                        $("#musicArtist").text(music.artists.map(artist => artist.name).join(", "));
+
+                        const trackId = music.uri.split(':')[2]; // Spotify URI에서 트랙 ID 추출
+                        $("#spotifyPlayer").attr("src", `https://open.spotify.com/embed/track/${trackId}`);
+                    },
+                    error: function(xhr) {
+                        alert("에러가 발생했습니다: " + xhr.responseJSON.error);
                     }
-                }
-            })
-            .catch(error => {
-                document.getElementById('result').innerHTML = `오류 발생: ${error}`;
-                document.getElementById('audioPlayer').style.display = 'none'; // 오류가 있을 경우 재생바 숨기기
+                });
             });
-        }
+
+            $("#movieBtn").click(function() {
+                let userText = $("#userText").val();
+
+                $.ajax({
+                    url: "/analyze",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({ text: userText }),
+                    success: function(response) {
+                        // 감정 분석 결과 표시
+                        $("#result").show();
+                        $("#sentiment").text(response.sentiment);
+
+                        // 영화 추천만 표시
+                        $("#movieRecommendation").show();
+                        $("#musicRecommendation").hide();
+
+                        const movie = response.movie_recommendation;
+                        $("#movieTitle").text(movie.title);
+                        $("#movieReleaseDate").text(movie.release_date);
+                        $("#movieOverview").text(movie.overview);
+
+                        // 영화 포스터 URL 조합
+                        const posterPath = movie.poster_path;
+                        const posterUrl = `https://image.tmdb.org/t/p/w500${posterPath}`;
+                        $("#moviePoster").attr("src", posterUrl);
+                    },
+                    error: function(xhr) {
+                        alert("에러가 발생했습니다: " + xhr.responseJSON.error);
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

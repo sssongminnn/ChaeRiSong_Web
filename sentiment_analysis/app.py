@@ -10,7 +10,11 @@ API_URL = "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX
 
 # Spotify API 설정 (엑세스 토큰 하드코딩)
 spotify_url = "https://api.spotify.com/v1/recommendations"
-spotify_access_token = "BQCsmrRhQLqarY3wCL-P70BiDqfVrQ9J0XKVU4wVurhPnfTYlsyCS-6AV-NHE_0Zza5Q2gqCYNdDQjkVkkljNjwBLcPLFViyA6EI8zoRIOt8uNZ0VTs"  # 실제 Spotify Access Token으로 변경
+spotify_access_token = "BQAYd8Q6jKeRP0j0eWhizfDdBIZbbfdF6aaA7nDFvPPhs3qsTEcuKbUjw53nSVgC4GXKK0C3P13vpyKK9amRpIHG5jMh3EA0wRweLuF8LSm-LKaop6g"
+
+# TMDb API 설정 (영화 추천)
+tmdb_api_key = "21b8fb87add288dc03ffdcc53bf151c2"  # 실제 TMDb API 키로 변경
+tmdb_url = "https://api.themoviedb.org/3/discover/movie"
 
 def analyze_sentiment(text):
     headers = {
@@ -53,7 +57,7 @@ def analyze_sentiment(text):
                             content = data_json.split('"content":"')[1].split('"')[0]
                             if "감정: " in content:
                                 sentiment = content.split("감정: ")[-1].strip()
-                                break  # 첫 감정 표현만 저장하고 루프 종료
+                                break
                     except (IndexError, ValueError):
                         continue
 
@@ -91,9 +95,9 @@ def analyze():
 
     # Spotify 추천 API 파라미터
     spotify_params = {
-        'seed_genres': 'pop',  # 예시로 'pop' 장르 사용
+        'seed_genres': 'pop',
         'target_valence': target_valence,
-        'limit': 10  # 최대 10곡 추천
+        'limit': 10
     }
 
     try:
@@ -111,10 +115,42 @@ def analyze():
     
     random_track = random.choice(tracks)  # 랜덤으로 하나의 트랙 선택
 
-    # 감정 분석 결과와 음악 추천 결과를 함께 반환
+    # 감정 분석 결과에 따라 TMDb API 호출 (영화 추천)
+    if "긍정" in sentiment:
+        genre = "35"  # Comedy
+    elif "부정" in sentiment:
+        genre = "18"  # Drama
+    else:
+        genre = "12"  # Adventure (중립적인 분위기)
+
+    tmdb_params = {
+        'api_key': tmdb_api_key,
+        'with_genres': genre,
+        'sort_by': 'popularity.desc',
+        'language': 'ko-KR',
+        'page': 1
+    }
+
+    try:
+        tmdb_response = requests.get(tmdb_url, params=tmdb_params)
+        tmdb_response.raise_for_status()  # 응답 오류 확인
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Failed to fetch movie recommendations: {str(e)}"}), 500
+
+    tmdb_result = tmdb_response.json()
+
+    # 랜덤으로 하나의 영화 선택
+    movies = tmdb_result.get('results', [])
+    if not movies:
+        return jsonify({"error": "No movie recommendations found"}), 500
+
+    random_movie = random.choice(movies)  # 랜덤으로 하나의 영화 선택
+
+    # 감정 분석 결과와 음악 및 영화 추천 결과를 함께 반환
     return jsonify({
         "sentiment": sentiment,
-        "music_recommendation": random_track  # 랜덤으로 선택한 트랙만 반환
+        "music_recommendation": random_track,  # 랜덤으로 선택한 트랙 반환
+        "movie_recommendation": random_movie  # 랜덤으로 선택한 영화 반환
     })
 
 if __name__ == '__main__':
